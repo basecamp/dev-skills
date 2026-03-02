@@ -54,7 +54,7 @@ query {
         nodes {
           id
           isResolved
-          comments(first: 5) {
+          comments(last: 20) {
             nodes { body path line author { login } }
           }
         }
@@ -92,7 +92,7 @@ gh api graphql -f query='
 mutation {
   addPullRequestReviewThreadReply(input: {
     pullRequestReviewThreadId: "THREAD_ID",
-    body: "Fixed - [brief explanation of what was done]"
+    body: "Fixed — [brief explanation of what was done]"
   }) {
     comment { id }
   }

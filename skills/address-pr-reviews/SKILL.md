@@ -38,6 +38,7 @@ query {
   repository(owner: "OWNER", name: "REPO") {
     pullRequest(number: PR_NUMBER) {
       reviews(first: 50) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           id
           state
@@ -49,6 +50,7 @@ query {
         }
       }
       reviewThreads(first: 50) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           id
           isResolved
@@ -114,3 +116,4 @@ mutation {
 - For inline threads, reply to the thread directly, then resolve
 - Keep replies concise: "Fixed — [what changed]"
 - Batch parallel mutations when possible
+- If `pageInfo.hasNextPage` is true, paginate with `after: "endCursor"` to fetch all reviews/threads

@@ -1,6 +1,7 @@
 ---
 name: address-pr-reviews
-description: Address PR review comments - fix issues, reply to threads, mark resolved
+description: |
+  Address PR review comments - fix issues, reply to threads, mark resolved
 version: 1.1.0
 triggers:
   # Direct invocations

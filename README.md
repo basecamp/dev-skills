@@ -5,6 +5,7 @@ npx skills add basecamp/dev-skills
 | Skill | Description |
 |-------|-------------|
 | [address-pr-reviews](skills/address-pr-reviews/) | Address PR review comments - fix issues, reply to threads, mark resolved |
+| [observability](skills/observability/) | Investigate production issues using Grafana (Prometheus, Loki, Tempo) and Sentry |
 | [consult-outside-expert](skills/consult-outside-expert/) | Consult an outside expert to collaboratively refine and stress-test ideas |
 | [install-md](skills/install-md/) | Create install.md files optimized for AI agent execution |
 | [ralph-lisa-loop](skills/ralph-lisa-loop/) | Automated plan-implement loop with expert review and rope-length autonomy control |

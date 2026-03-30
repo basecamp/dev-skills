@@ -53,22 +53,13 @@ ALL_DIR=$(mktemp -d)
 # URL encoding. Splits by state (merged/closed/open) when a single query
 # hits GitHub's 1000-result hard cap.
 #
-# Usage: gh_search_all prs|issues QUERY_QUALIFIERS...
+# Usage: gh_search_all "full search query including type and date qualifiers"
 # Writes JSON array to stdout.
 #
 gh_search_all() {
-  local search_type="$1"; shift
   local tmpdir
   tmpdir=$(mktemp -d)
-
-  local type_q="is:pr"
-  [[ "$search_type" == "issues" ]] && type_q="is:issue"
-
-  local query="$type_q created:$SEARCH_RANGE"
-  while [[ $# -gt 0 ]]; do
-    query="$query $1"
-    shift
-  done
+  local query="$1"
 
   # Paginated fetch via REST search API
   gh api "search/issues" --method GET -f q="$query" -f per_page=100 \
@@ -82,7 +73,7 @@ gh_search_all() {
   if [[ "$count" -ge 1000 ]]; then
     echo "  (Hit 1000-result cap, splitting by state...)" >&2
     local states
-    if [[ "$search_type" == "prs" ]]; then
+    if [[ "$query" == *"is:pr"* ]]; then
       states="merged closed open"
     else
       states="closed open"
@@ -110,25 +101,25 @@ gh_search_all() {
   echo "    $count" >&2
 }
 
-# Build qualifier list
-QUALIFIERS=("author:$USERNAME")
-[[ -n "$ORG" ]] && QUALIFIERS+=("org:$ORG")
-
 # ── PRs authored ──
 echo "  PRs authored..." >&2
-gh_search_all prs "${QUALIFIERS[@]}" > "$ALL_DIR/prs-authored.json"
+QUERY="is:pr created:$SEARCH_RANGE author:$USERNAME"
+[[ -n "$ORG" ]] && QUERY="$QUERY org:$ORG"
+gh_search_all "$QUERY" > "$ALL_DIR/prs-authored.json"
 PRS_COUNT=$(jq 'length' "$ALL_DIR/prs-authored.json")
 
-# ── PRs reviewed ──
+# ── PRs reviewed — use updated: to capture reviews on older PRs ──
 echo "  PRs reviewed..." >&2
-REVIEW_QUALS=("reviewed-by:$USERNAME")
-[[ -n "$ORG" ]] && REVIEW_QUALS+=("org:$ORG")
-gh_search_all prs "${REVIEW_QUALS[@]}" > "$ALL_DIR/prs-reviewed.json"
+QUERY="is:pr updated:$SEARCH_RANGE reviewed-by:$USERNAME"
+[[ -n "$ORG" ]] && QUERY="$QUERY org:$ORG"
+gh_search_all "$QUERY" > "$ALL_DIR/prs-reviewed.json"
 REVIEWED_COUNT=$(jq 'length' "$ALL_DIR/prs-reviewed.json")
 
 # ── Issues ──
 echo "  Issues..." >&2
-gh_search_all issues "${QUALIFIERS[@]}" > "$ALL_DIR/issues.json"
+QUERY="is:issue created:$SEARCH_RANGE author:$USERNAME"
+[[ -n "$ORG" ]] && QUERY="$QUERY org:$ORG"
+gh_search_all "$QUERY" > "$ALL_DIR/issues.json"
 ISSUES_COUNT=$(jq 'length' "$ALL_DIR/issues.json")
 
 # ── Commits (via GraphQL contributions) ──
@@ -137,8 +128,8 @@ SINCE_ISO="${SINCE_DAY}T00:00:00Z"
 UNTIL_ISO="${UNTIL_DAY}T23:59:59Z"
 
 gh api graphql -f query='
-  query($from: DateTime!, $to: DateTime!) {
-    viewer {
+  query($login: String!, $from: DateTime!, $to: DateTime!) {
+    user(login: $login) {
       contributionsCollection(from: $from, to: $to) {
         totalCommitContributions
         commitContributionsByRepository(maxRepositories: 100) {
@@ -148,8 +139,8 @@ gh api graphql -f query='
       }
     }
   }
-' -f from="$SINCE_ISO" -f to="$UNTIL_ISO" 2>/dev/null | \
-  jq '.data.viewer.contributionsCollection' > "$ALL_DIR/commits.json"
+' -f login="$USERNAME" -f from="$SINCE_ISO" -f to="$UNTIL_ISO" 2>/dev/null | \
+  jq '.data.user.contributionsCollection' > "$ALL_DIR/commits.json"
 COMMIT_COUNT=$(jq '.totalCommitContributions // 0' "$ALL_DIR/commits.json")
 echo "    $COMMIT_COUNT commits" >&2
 
@@ -178,27 +169,23 @@ for day in $(days_in_range "$SINCE_DAY" "$UNTIL_DAY"); do
   NEXT_DAY=$(date -d "$day + 1 day" +%Y-%m-%d 2>/dev/null || date -j -v+1d -f "%Y-%m-%d" "$day" +%Y-%m-%d)
 
   # Filter each category to this day
-  jq --arg day "$day" --arg next "$NEXT_DAY" --arg user "$USERNAME" '
+  jq -n \
+    --arg day "$day" \
+    --arg next "$NEXT_DAY" \
+    --arg user "$USERNAME" \
+    --slurpfile authored "$ALL_DIR/prs-authored.json" \
+    --slurpfile reviewed "$ALL_DIR/prs-reviewed.json" \
+    --slurpfile issues "$ALL_DIR/issues.json" '
     def day_filter: [.[] | select(.created_at >= ($day + "T00:00:00Z") and .created_at < ($next + "T00:00:00Z"))];
     {
       user: $user,
       date: $day,
-      prs_authored: (input | day_filter),
-      prs_reviewed: (input | day_filter),
-      issues: (input | day_filter),
+      prs_authored: ($authored[0] | day_filter),
+      prs_reviewed: ($reviewed[0] | [.[] | select((.updated_at // .created_at) >= ($day + "T00:00:00Z") and (.updated_at // .created_at) < ($next + "T00:00:00Z"))]),
+      issues: ($issues[0] | day_filter),
       metadata: { complete: true }
     }
-  ' "$ALL_DIR/prs-authored.json" "$ALL_DIR/prs-reviewed.json" "$ALL_DIR/issues.json" > "$CACHE_FILE" 2>/dev/null || {
-    # Simpler fallback: just PRs authored for this day
-    jq --arg day "$day" --arg next "$NEXT_DAY" --arg user "$USERNAME" '[
-      .[] | select(.created_at >= ($day + "T00:00:00Z") and .created_at < ($next + "T00:00:00Z"))
-    ] | {
-      user: $user,
-      date: $day,
-      prs_authored: .,
-      metadata: { complete: true }
-    }' "$ALL_DIR/prs-authored.json" > "$CACHE_FILE"
-  }
+  ' > "$CACHE_FILE"
 
   # Add counts
   jq '.metadata.counts = {

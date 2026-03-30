@@ -89,7 +89,7 @@ for pair in "${REPO_PAIRS[@]}"; do
     COMMITS_FILE=$(mktemp)
     git -C "$REPO_PATH" log \
       --format='%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%b%x1e' \
-      --since="$day" --until="$NEXT_DAY" \
+      --since="${day}T00:00:00" --until="${NEXT_DAY}T00:00:00" \
       --no-merges > "$COMMITS_FILE" 2>/dev/null || true
 
     if [[ ! -s "$COMMITS_FILE" ]]; then
@@ -123,12 +123,18 @@ for pair in "${REPO_PAIRS[@]}"; do
       commits: .,
       metadata: { complete: true, count: (. | length) }
     }' > "$CACHE_FILE" 2>/dev/null || {
-      # Fallback: simpler format if awk/jq pipeline fails
+      # Fallback: simpler delimiter-separated format if awk/jq pipeline fails
       git -C "$REPO_PATH" log \
-        --format='{"short_hash":"%h","subject":"%s","author":"%an","date":"%aI"}' \
-        --since="$day" --until="$NEXT_DAY" \
+        --format='%h%x1f%s%x1f%an%x1f%aI%x1e' \
+        --since="${day}T00:00:00" --until="${NEXT_DAY}T00:00:00" \
         --no-merges 2>/dev/null | \
-        jq -s --arg repo "$REPO_NAME" --arg day "$day" '{
+        awk -v RS=$'\x1e' -v FS=$'\x1f' '
+          NF >= 4 {
+            gsub(/"/, "\\\"", $2)
+            gsub(/"/, "\\\"", $3)
+            printf "{\"short_hash\":\"%s\",\"subject\":\"%s\",\"author\":\"%s\",\"date\":\"%s\"}\n", $1, $2, $3, $4
+          }
+        ' | jq -s --arg repo "$REPO_NAME" --arg day "$day" '{
           repo: $repo,
           date: $day,
           commits: .,

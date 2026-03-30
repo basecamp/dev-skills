@@ -107,6 +107,10 @@ for pair in "${REPO_PAIRS[@]}"; do
     # Parse commits into JSON using unit separator (%x1f) and record separator (%x1e)
     awk -v RS=$'\x1e' -v FS=$'\x1f' '
       NF >= 5 {
+        # Escape backslashes first (before other gsub calls that insert them)
+        gsub(/\\/, "\\\\", $3)
+        gsub(/\\/, "\\\\", $4)
+        gsub(/\\/, "\\\\", $6)
         gsub(/\n/, "\\n", $6)
         gsub(/"/, "\\\"", $3)
         gsub(/"/, "\\\"", $4)
@@ -130,6 +134,8 @@ for pair in "${REPO_PAIRS[@]}"; do
         --no-merges 2>/dev/null | \
         awk -v RS=$'\x1e' -v FS=$'\x1f' '
           NF >= 4 {
+            gsub(/\\/, "\\\\", $2)
+            gsub(/\\/, "\\\\", $3)
             gsub(/"/, "\\\"", $2)
             gsub(/"/, "\\\"", $3)
             printf "{\"short_hash\":\"%s\",\"subject\":\"%s\",\"author\":\"%s\",\"date\":\"%s\"}\n", $1, $2, $3, $4

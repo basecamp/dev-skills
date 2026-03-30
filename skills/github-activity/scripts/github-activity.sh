@@ -141,7 +141,16 @@ gh api graphql -f query='
   }
 ' -f login="$USERNAME" -f from="$SINCE_ISO" -f to="$UNTIL_ISO" 2>/dev/null | \
   jq '.data.user.contributionsCollection' > "$ALL_DIR/commits.json"
-COMMIT_COUNT=$(jq '.totalCommitContributions // 0' "$ALL_DIR/commits.json")
+if [[ -n "$ORG" ]]; then
+  # When org-scoped, sum only repos in that org instead of global total
+  COMMIT_COUNT=$(jq --arg org "$ORG" '
+    [.commitContributionsByRepository[]
+     | select(.repository.nameWithOwner | startswith($org + "/"))
+     | .contributions.totalCount] | add // 0
+  ' "$ALL_DIR/commits.json")
+else
+  COMMIT_COUNT=$(jq '.totalCommitContributions // 0' "$ALL_DIR/commits.json")
+fi
 echo "    $COMMIT_COUNT commits" >&2
 
 # ── Split into per-day cache atoms ──

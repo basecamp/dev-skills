@@ -85,14 +85,16 @@ for pair in "${REPO_PAIRS[@]}"; do
 
     mkdir -p "$CACHE_DIR"
 
-    # Fetch git log for this day
-    COMMITS=$(git -C "$REPO_PATH" log \
-      --format='%H%x00%h%x00%s%x00%an%x00%aI%x00%b%x1e' \
+    # Fetch git log for this day — write to file to avoid null byte issues
+    COMMITS_FILE=$(mktemp)
+    git -C "$REPO_PATH" log \
+      --format='%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%b%x1e' \
       --since="$day" --until="$NEXT_DAY" \
-      --no-merges 2>/dev/null || echo "")
+      --no-merges > "$COMMITS_FILE" 2>/dev/null || true
 
-    if [[ -z "$COMMITS" ]]; then
+    if [[ ! -s "$COMMITS_FILE" ]]; then
       # No commits — write empty but complete
+      rm -f "$COMMITS_FILE"
       jq -n --arg repo "$REPO_NAME" --arg day "$day" '{
         repo: $repo,
         date: $day,
@@ -102,8 +104,8 @@ for pair in "${REPO_PAIRS[@]}"; do
       continue
     fi
 
-    # Parse commits into JSON
-    echo "$COMMITS" | awk -v RS=$'\x1e' -v FS=$'\x00' '
+    # Parse commits into JSON using unit separator (%x1f) and record separator (%x1e)
+    awk -v RS=$'\x1e' -v FS=$'\x1f' '
       NF >= 5 {
         gsub(/\n/, "\\n", $6)
         gsub(/"/, "\\\"", $3)
@@ -115,7 +117,7 @@ for pair in "${REPO_PAIRS[@]}"; do
         sub(/[[:space:]]+$/, "", $6)
         printf "{\"hash\":\"%s\",\"short_hash\":\"%s\",\"subject\":\"%s\",\"author\":\"%s\",\"date\":\"%s\",\"body\":\"%s\"}\n", $1, $2, $3, $4, $5, $6
       }
-    ' | jq -s --arg repo "$REPO_NAME" --arg day "$day" '{
+    ' "$COMMITS_FILE" | jq -s --arg repo "$REPO_NAME" --arg day "$day" '{
       repo: $repo,
       date: $day,
       commits: .,
@@ -134,6 +136,7 @@ for pair in "${REPO_PAIRS[@]}"; do
         }' > "$CACHE_FILE"
     }
 
+    rm -f "$COMMITS_FILE"
     COUNT=$(jq '.metadata.count' "$CACHE_FILE")
     echo "  $day: $COUNT commits" >&2
   done

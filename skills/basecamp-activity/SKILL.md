@@ -26,7 +26,7 @@ Caches at `~/.cache/recap/basecamp-project/{id}/{YYYY-MM-DD}/activity.json` or
 ```
 /recap:basecamp-activity --project 43483623 --since 2026-03-23
 /recap:basecamp-activity --project 43483623 --since 2026-03-23 --until 2026-03-30 --reuse
-/recap:basecamp-activity --person jeremy --user 12345 --since 2026-03-23
+/recap:basecamp-activity --person "Jeremy Daer" --since 2026-03-23
 ```
 
 ## Contract
@@ -84,8 +84,7 @@ Each `activity.json` contains:
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `--project` | One of project/person | Basecamp project ID |
-| `--person` | One of project/person | Person slug for person-scoped fetch |
-| `--user` | With --person | Basecamp user ID (auto-detected if omitted) |
+| `--person` | One of project/person | Person name or ID (passed to `basecamp timeline --person`) |
 | `--since` | Yes | Start date (YYYY-MM-DD) |
 | `--until` | No | End date (default: today) |
 | `--reuse` | No | Skip fetch if cache exists and is complete |

@@ -51,7 +51,7 @@ ALL_DIR=$(mktemp -d)
 # ── PRs authored ──
 echo "  PRs authored..." >&2
 ORG_FILTER=""
-[[ -n "$ORG" ]] && ORG_FILTER=" org:$ORG"
+[[ -n "$ORG" ]] && ORG_FILTER="+org:$ORG"
 gh api --paginate "search/issues?q=type:pr+author:${USERNAME}+created:${SEARCH_RANGE}${ORG_FILTER}&per_page=100&sort=created&order=desc" \
   --jq '.items' 2>/dev/null | jq -s 'add // []' > "$ALL_DIR/prs-authored.json"
 PRS_COUNT=$(jq 'length' "$ALL_DIR/prs-authored.json")

@@ -104,49 +104,26 @@ for pair in "${REPO_PAIRS[@]}"; do
       continue
     fi
 
-    # Parse commits into JSON using unit separator (%x1f) and record separator (%x1e)
-    awk -v RS=$'\x1e' -v FS=$'\x1f' '
-      NF >= 5 {
-        # Escape backslashes first (before other gsub calls that insert them)
-        gsub(/\\/, "\\\\", $3)
-        gsub(/\\/, "\\\\", $4)
-        gsub(/\\/, "\\\\", $6)
-        gsub(/\n/, "\\n", $6)
-        gsub(/"/, "\\\"", $3)
-        gsub(/"/, "\\\"", $4)
-        gsub(/"/, "\\\"", $6)
-        gsub(/\t/, "\\t", $6)
-        # Trim leading/trailing whitespace from body
-        sub(/^[[:space:]]+/, "", $6)
-        sub(/[[:space:]]+$/, "", $6)
-        printf "{\"hash\":\"%s\",\"short_hash\":\"%s\",\"subject\":\"%s\",\"author\":\"%s\",\"date\":\"%s\",\"body\":\"%s\"}\n", $1, $2, $3, $4, $5, $6
+    # Parse commits into JSON — let jq handle all string escaping to avoid
+    # control character / newline issues that break awk-based JSON serialization
+    jq -R -s --arg repo "$REPO_NAME" --arg day "$day" '
+      split("\u001e") | map(select(length > 0)) |
+      map(split("\u001f")) |
+      map(select(length >= 5) | {
+        hash: .[0],
+        short_hash: .[1],
+        subject: .[2],
+        author: .[3],
+        date: .[4],
+        body: (.[5] // "" | gsub("^\\s+|\\s+$"; ""))
+      }) |
+      {
+        repo: $repo,
+        date: $day,
+        commits: .,
+        metadata: { complete: true, count: length }
       }
-    ' "$COMMITS_FILE" | jq -s --arg repo "$REPO_NAME" --arg day "$day" '{
-      repo: $repo,
-      date: $day,
-      commits: .,
-      metadata: { complete: true, count: (. | length) }
-    }' > "$CACHE_FILE" 2>/dev/null || {
-      # Fallback: simpler delimiter-separated format if awk/jq pipeline fails
-      git -C "$REPO_PATH" log \
-        --format='%h%x1f%s%x1f%an%x1f%aI%x1e' \
-        --since="${day}T00:00:00" --until="${NEXT_DAY}T00:00:00" \
-        --no-merges 2>/dev/null | \
-        awk -v RS=$'\x1e' -v FS=$'\x1f' '
-          NF >= 4 {
-            gsub(/\\/, "\\\\", $2)
-            gsub(/\\/, "\\\\", $3)
-            gsub(/"/, "\\\"", $2)
-            gsub(/"/, "\\\"", $3)
-            printf "{\"short_hash\":\"%s\",\"subject\":\"%s\",\"author\":\"%s\",\"date\":\"%s\"}\n", $1, $2, $3, $4
-          }
-        ' | jq -s --arg repo "$REPO_NAME" --arg day "$day" '{
-          repo: $repo,
-          date: $day,
-          commits: .,
-          metadata: { complete: true, count: (. | length) }
-        }' > "$CACHE_FILE"
-    }
+    ' "$COMMITS_FILE" > "$CACHE_FILE"
 
     rm -f "$COMMITS_FILE"
     COUNT=$(jq '.metadata.count' "$CACHE_FILE")

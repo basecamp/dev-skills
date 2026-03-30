@@ -76,18 +76,25 @@ days_in_range() {
 # Fetch all activity events using the basecamp timeline CLI, then split by day.
 ALL_EVENTS_FILE=$(mktemp)
 
+FETCH_FAILED=false
 if [[ -n "$PROJECT_ID" ]]; then
   echo "  Fetching project timeline..." >&2
   basecamp timeline --in "$PROJECT_ID" --json --quiet --all 2>/dev/null > "$ALL_EVENTS_FILE" || {
-    echo "  WARN: timeline fetch failed" >&2
-    echo "[]" > "$ALL_EVENTS_FILE"
+    echo "  ERROR: timeline fetch failed for project $PROJECT_ID" >&2
+    FETCH_FAILED=true
   }
 else
   echo "  Fetching person timeline ($PERSON)..." >&2
   basecamp timeline --person "$PERSON" --json --quiet --all 2>/dev/null > "$ALL_EVENTS_FILE" || {
-    echo "  WARN: timeline fetch failed" >&2
-    echo "[]" > "$ALL_EVENTS_FILE"
+    echo "  ERROR: timeline fetch failed for person $PERSON" >&2
+    FETCH_FAILED=true
   }
+fi
+
+if [[ "$FETCH_FAILED" == "true" ]]; then
+  rm -f "$ALL_EVENTS_FILE"
+  echo '{"status":"error","message":"timeline fetch failed"}' >&2
+  exit 1
 fi
 
 # Filter to window

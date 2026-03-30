@@ -62,9 +62,12 @@ gh_search_all() {
   local query="$1"
 
   # Paginated fetch via REST search API
-  gh api "search/issues" --method GET -f q="$query" -f per_page=100 \
-    --paginate --jq '.items' > "$tmpdir/raw.jsonl" 2>"$tmpdir/stderr.txt" \
-    || true
+  if ! gh api "search/issues" --method GET -f q="$query" -f per_page=100 \
+    --paginate --jq '.items' > "$tmpdir/raw.jsonl" 2>"$tmpdir/stderr.txt"; then
+    echo "    ERROR: GitHub search failed ($(cat "$tmpdir/stderr.txt" | head -1))" >&2
+    rm -rf "$tmpdir"
+    return 1
+  fi
   jq -s 'add // []' "$tmpdir/raw.jsonl" > "$tmpdir/all.json"
 
   local count

@@ -2,8 +2,9 @@
 #
 # GitHub activity fetcher — PRs, reviews, commits, day-cached.
 #
-# Uses the `gh` CLI for authentication and API calls.
-# Caches per day at ~/.cache/recap/github/{user}/{YYYY-MM-DD}/prs.json
+# Uses the `gh` CLI REST search API (not gh search, which silently drops
+# private org repos). Handles >1000 results by splitting by state.
+# Caches per day at ~/.cache/recap/github/{user}/{YYYY-MM-DD}/activity.json
 #
 # Usage:
 #   ./github-activity.sh --since DATE --until DATE [--user USERNAME] [--org ORG] [--reuse]
@@ -43,33 +44,92 @@ CACHE_BASE="$HOME/.cache/recap/github/$USERNAME"
 
 echo "Fetching GitHub activity for $USERNAME ($SINCE_DAY to $UNTIL_DAY)..." >&2
 
-# We fetch the full range then split by day, since GitHub search is date-ranged
-# and splitting per-day would multiply API calls unnecessarily.
-
 ALL_DIR=$(mktemp -d)
+
+# ─────────────────────────────────────────────────
+# Helper: paginated search with >1000-result overflow handling
+# ─────────────────────────────────────────────────
+# Uses REST search API via `gh api search/issues` with -f q= for proper
+# URL encoding. Splits by state (merged/closed/open) when a single query
+# hits GitHub's 1000-result hard cap.
+#
+# Usage: gh_search_all prs|issues QUERY_QUALIFIERS...
+# Writes JSON array to stdout.
+#
+gh_search_all() {
+  local search_type="$1"; shift
+  local tmpdir
+  tmpdir=$(mktemp -d)
+
+  local type_q="is:pr"
+  [[ "$search_type" == "issues" ]] && type_q="is:issue"
+
+  local query="$type_q created:$SEARCH_RANGE"
+  while [[ $# -gt 0 ]]; do
+    query="$query $1"
+    shift
+  done
+
+  # Paginated fetch via REST search API
+  gh api "search/issues" --method GET -f q="$query" -f per_page=100 \
+    --paginate --jq '.items' > "$tmpdir/raw.jsonl" 2>"$tmpdir/stderr.txt" \
+    || true
+  jq -s 'add // []' "$tmpdir/raw.jsonl" > "$tmpdir/all.json"
+
+  local count
+  count=$(jq 'length' "$tmpdir/all.json")
+
+  if [[ "$count" -ge 1000 ]]; then
+    echo "  (Hit 1000-result cap, splitting by state...)" >&2
+    local states
+    if [[ "$search_type" == "prs" ]]; then
+      states="merged closed open"
+    else
+      states="closed open"
+    fi
+
+    for state in $states; do
+      gh api "search/issues" --method GET \
+        -f q="${query} is:${state}" -f per_page=100 \
+        --paginate --jq '.items' > "$tmpdir/state_${state}.raw" 2>/dev/null \
+        || true
+      jq -s 'add // []' "$tmpdir/state_${state}.raw" > "$tmpdir/state_${state}.json"
+      rm -f "$tmpdir/state_${state}.raw"
+      local sc
+      sc=$(jq 'length' "$tmpdir/state_${state}.json")
+      echo "    state=$state: $sc" >&2
+      [[ "$sc" -ge 1000 ]] && echo "    WARNING: state=$state hit 1000 cap — narrow date range" >&2
+    done
+
+    jq -s 'add | unique_by(.html_url)' "$tmpdir"/state_*.json > "$tmpdir/all.json"
+    count=$(jq 'length' "$tmpdir/all.json")
+  fi
+
+  cat "$tmpdir/all.json"
+  rm -rf "$tmpdir"
+  echo "    $count" >&2
+}
+
+# Build qualifier list
+QUALIFIERS=("author:$USERNAME")
+[[ -n "$ORG" ]] && QUALIFIERS+=("org:$ORG")
 
 # ── PRs authored ──
 echo "  PRs authored..." >&2
-ORG_FILTER=""
-[[ -n "$ORG" ]] && ORG_FILTER="+org:$ORG"
-gh api --paginate "search/issues?q=type:pr+author:${USERNAME}+created:${SEARCH_RANGE}${ORG_FILTER}&per_page=100&sort=created&order=desc" \
-  --jq '.items' 2>/dev/null | jq -s 'add // []' > "$ALL_DIR/prs-authored.json"
+gh_search_all prs "${QUALIFIERS[@]}" > "$ALL_DIR/prs-authored.json"
 PRS_COUNT=$(jq 'length' "$ALL_DIR/prs-authored.json")
-echo "    $PRS_COUNT PRs" >&2
 
 # ── PRs reviewed ──
 echo "  PRs reviewed..." >&2
-gh api --paginate "search/issues?q=type:pr+reviewed-by:${USERNAME}+created:${SEARCH_RANGE}${ORG_FILTER}&per_page=100&sort=created&order=desc" \
-  --jq '.items' 2>/dev/null | jq -s 'add // []' > "$ALL_DIR/prs-reviewed.json"
+REVIEW_QUALS=("reviewed-by:$USERNAME")
+[[ -n "$ORG" ]] && REVIEW_QUALS+=("org:$ORG")
+gh_search_all prs "${REVIEW_QUALS[@]}" > "$ALL_DIR/prs-reviewed.json"
 REVIEWED_COUNT=$(jq 'length' "$ALL_DIR/prs-reviewed.json")
-echo "    $REVIEWED_COUNT PRs" >&2
 
 # ── Issues ──
 echo "  Issues..." >&2
-gh api --paginate "search/issues?q=type:issue+author:${USERNAME}+created:${SEARCH_RANGE}${ORG_FILTER}&per_page=100&sort=created&order=desc" \
-  --jq '.items' 2>/dev/null | jq -s 'add // []' > "$ALL_DIR/issues.json"
+gh_search_all issues "${QUALIFIERS[@]}" > "$ALL_DIR/issues.json"
 ISSUES_COUNT=$(jq 'length' "$ALL_DIR/issues.json")
-echo "    $ISSUES_COUNT issues" >&2
 
 # ── Commits (via GraphQL contributions) ──
 echo "  Commits..." >&2
@@ -93,9 +153,8 @@ gh api graphql -f query='
 COMMIT_COUNT=$(jq '.totalCommitContributions // 0' "$ALL_DIR/commits.json")
 echo "    $COMMIT_COUNT commits" >&2
 
-# ── Split PRs authored into per-day cache atoms ──
+# ── Split into per-day cache atoms ──
 
-# Generate list of days
 days_in_range() {
   local current="$1" end="$2"
   while [[ "$current" < "$end" || "$current" == "$end" ]]; do

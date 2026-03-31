@@ -2,15 +2,20 @@
 set -euo pipefail
 
 # Validate the symlink-inversion structure:
-# - Every entry in skills/ is a symlink with a valid target
+# - Every entry in skills/ is a symlink pointing into a plugin's skills/ dir
 # - Every skill in a plugin's skills/ has a corresponding symlink in skills/
 # - Every skill referenced in plugin.json exists in that plugin's skills/ dir
+# - plugin.json skill paths use the expected ./skills/<name>/ format
 
 errors=0
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
-# 1. Every entry in skills/ must be a symlink with a valid target
-#    Use find instead of glob to catch plain files, broken symlinks, and directories
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "ERROR: python3 is required but not found"
+  exit 1
+fi
+
+# 1. Every entry in skills/ must be a symlink pointing into a plugin skills dir
 while IFS= read -r entry; do
   name="$(basename "$entry")"
   link="$root/skills/$name"
@@ -21,6 +26,12 @@ while IFS= read -r entry; do
   elif [ ! -e "$link" ]; then
     echo "ERROR: skills/$name is a broken symlink -> $(readlink "$link")"
     errors=$((errors + 1))
+  else
+    target="$(readlink "$link")"
+    if [[ ! "$target" =~ ^\.\.\/plugins\/[^/]+\/skills\/[^/]+$ ]]; then
+      echo "ERROR: skills/$name -> $target (must match ../plugins/{plugin}/skills/{name})"
+      errors=$((errors + 1))
+    fi
   fi
 done < <(find "$root/skills" -mindepth 1 -maxdepth 1)
 
@@ -66,19 +77,33 @@ for plugin_dir in "$root"/plugins/*/; do
   manifest="$plugin_dir/.claude-plugin/plugin.json"
   [ -f "$manifest" ] || continue
 
-  # Extract skill directory names from paths like "./skills/foo/"
-  skill_names="$(python3 -c "
-import json, sys
-with open('$manifest') as f:
+  skill_names="$(python3 - "$manifest" <<'PYEOF'
+import json, os, sys
+
+manifest = sys.argv[1]
+with open(manifest) as f:
     data = json.load(f)
-skills = data.get('skills', [])
+
+skills = data.get("skills", [])
 if isinstance(skills, list):
     for path in skills:
-        print(path.strip('./').split('/')[1] if '/' in path.strip('./') else path.strip('./'))
+        normalized = os.path.normpath(path)
+        parts = normalized.split(os.sep)
+        if len(parts) >= 2 and parts[0] == "skills":
+            print(parts[1])
+        else:
+            print(f"__INVALID_PATH__:{path}", file=sys.stderr)
 elif isinstance(skills, dict):
     for name in skills:
         print(name)
-")"
+PYEOF
+)"
+
+  # Check for invalid paths reported by the parser
+  if [ $? -ne 0 ]; then
+    echo "ERROR: plugins/$plugin plugin.json has unparseable skill paths"
+    errors=$((errors + 1))
+  fi
 
   while IFS= read -r name; do
     [ -n "$name" ] || continue
@@ -92,7 +117,7 @@ elif isinstance(skills, dict):
   for skill_dir in "$plugin_dir"/skills/*/; do
     [ -d "$skill_dir" ] || continue
     name="$(basename "$skill_dir")"
-    if ! echo "$skill_names" | grep -qx "$name"; then
+    if ! echo "$skill_names" | grep -Fqx "$name"; then
       echo "ERROR: plugins/$plugin/skills/$name exists but is not in plugin.json"
       errors=$((errors + 1))
     fi

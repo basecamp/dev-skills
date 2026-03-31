@@ -1,0 +1,23 @@
+scripts/validate-structure
+  5db11a78087afac2 5,8,13-18,29-34,80-84,86-87,90-95,99-106,120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "231d94fc8f494671bf43fb10d8af7d87f4add6f5",
+  "prompts": {
+    "5db11a78087afac2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d7a6114-5b5d-4b1a-975e-1a91b4480786",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jeremy Daer <jeremy@37signals.com>",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 11,
+      "accepted_lines": 36,
+      "overriden_lines": 0
+    }
+  }
+}

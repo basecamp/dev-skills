@@ -1,0 +1,23 @@
+skills/github-activity/scripts/github-activity.sh
+  944fa7adff47aad1 122-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "501009a50c1db020a669508be64b28c95259b66b",
+  "prompts": {
+    "944fa7adff47aad1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1589b5f-8bd0-40ac-bef4-0c7310793f8d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jeremy Daer <jeremy@37signals.com>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 1,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}

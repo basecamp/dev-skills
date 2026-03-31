@@ -31,6 +31,9 @@ while IFS= read -r entry; do
     if [[ ! "$target" =~ ^\.\.\/plugins\/[^/]+\/skills\/[^/]+$ ]]; then
       echo "ERROR: skills/$name -> $target (must match ../plugins/{plugin}/skills/{name})"
       errors=$((errors + 1))
+    elif [[ "$(basename "$target")" != "$name" ]]; then
+      echo "ERROR: skills/$name -> $target (symlink name must match target directory name)"
+      errors=$((errors + 1))
     fi
   fi
 done < <(find "$root/skills" -mindepth 1 -maxdepth 1)

@@ -1,0 +1,33 @@
+plugins/dev/.claude-plugin/plugin.json
+  5db11a78087afac2 1-11
+README.md
+  5db11a78087afac2 1-15,17,20-30,32-33
+plugins/security/.claude-plugin/plugin.json
+  5db11a78087afac2 1-7
+scripts/validate-structure
+  5db11a78087afac2 1-91
+plugins/ai/.claude-plugin/plugin.json
+  5db11a78087afac2 1-10
+AGENTS.md
+  5db11a78087afac2 7-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "d8f683eb642acd8ecaebfb9c7645c383cc3213a9",
+  "prompts": {
+    "5db11a78087afac2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d7a6114-5b5d-4b1a-975e-1a91b4480786",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jeremy Daer <jeremy@37signals.com>",
+      "messages": [],
+      "total_additions": 183,
+      "total_deletions": 11,
+      "accepted_lines": 183,
+      "overriden_lines": 0
+    }
+  }
+}

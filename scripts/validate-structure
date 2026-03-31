@@ -10,8 +10,8 @@ errors=0
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 1. Every entry in skills/ must be a symlink with a valid target
-for entry in "$root"/skills/*/; do
-  [ -e "$entry" ] || continue
+#    Use find instead of glob to catch plain files, broken symlinks, and directories
+while IFS= read -r entry; do
   name="$(basename "$entry")"
   link="$root/skills/$name"
 
@@ -22,7 +22,7 @@ for entry in "$root"/skills/*/; do
     echo "ERROR: skills/$name is a broken symlink -> $(readlink "$link")"
     errors=$((errors + 1))
   fi
-done
+done < <(find "$root/skills" -mindepth 1 -maxdepth 1)
 
 # 2. Every skill in a plugin's skills/ dir has a symlink in skills/
 for plugin_dir in "$root"/plugins/*/; do

@@ -41,6 +41,7 @@ UNTIL_DAY="${UNTIL_DATE:0:10}"
 SEARCH_RANGE="${SINCE_DAY}..${UNTIL_DAY}"
 
 CACHE_BASE="$HOME/.cache/recap/github/$USERNAME"
+[[ -n "$ORG" ]] && CACHE_BASE="$CACHE_BASE/org-$ORG"
 
 echo "Fetching GitHub activity for $USERNAME ($SINCE_DAY to $UNTIL_DAY)..." >&2
 

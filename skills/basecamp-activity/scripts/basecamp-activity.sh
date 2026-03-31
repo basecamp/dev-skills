@@ -73,6 +73,24 @@ days_in_range() {
   done
 }
 
+# Check if all day caches are already complete (skip fetch entirely with --reuse)
+if [[ "$REUSE" == "true" ]]; then
+  ALL_COMPLETE=true
+  for day in $(days_in_range "$SINCE_DAY" "$UNTIL_DAY"); do
+    CACHE_FILE="$CACHE_BASE/$day/activity.json"
+    if ! jq -e '.metadata.complete == true' "$CACHE_FILE" >/dev/null 2>&1; then
+      ALL_COMPLETE=false
+      break
+    fi
+  done
+  if [[ "$ALL_COMPLETE" == "true" ]]; then
+    echo "  All days cached and complete, skipping fetch" >&2
+    TOTAL=$(jq -s '[.[].metadata.count] | add' "$CACHE_BASE"/*/activity.json)
+    echo '{"status":"complete","cache_base":"'"$CACHE_BASE"'","total_events":'"$TOTAL"'}'
+    exit 0
+  fi
+fi
+
 # Fetch all activity events using the basecamp timeline CLI, then split by day.
 ALL_EVENTS_FILE=$(mktemp)
 

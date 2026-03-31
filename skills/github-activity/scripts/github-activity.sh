@@ -44,6 +44,30 @@ CACHE_BASE="$HOME/.cache/recap/github/$USERNAME"
 
 echo "Fetching GitHub activity for $USERNAME ($SINCE_DAY to $UNTIL_DAY)..." >&2
 
+days_in_range() {
+  local current="$1" end="$2"
+  while [[ "$current" < "$end" || "$current" == "$end" ]]; do
+    echo "$current"
+    current=$(date -d "$current + 1 day" +%Y-%m-%d 2>/dev/null || date -j -v+1d -f "%Y-%m-%d" "$current" +%Y-%m-%d)
+  done
+}
+
+# Check if all day caches are already complete (skip API calls with --reuse)
+if [[ "$REUSE" == "true" ]]; then
+  ALL_COMPLETE=true
+  for day in $(days_in_range "$SINCE_DAY" "$UNTIL_DAY"); do
+    if ! jq -e '.metadata.complete == true' "$CACHE_BASE/$day/activity.json" >/dev/null 2>&1; then
+      ALL_COMPLETE=false
+      break
+    fi
+  done
+  if [[ "$ALL_COMPLETE" == "true" ]]; then
+    echo "  All days cached and complete, skipping fetch" >&2
+    echo '{"status":"complete","cache_base":"'"$CACHE_BASE"'","reused":true}'
+    exit 0
+  fi
+fi
+
 ALL_DIR=$(mktemp -d)
 
 # ─────────────────────────────────────────────────
@@ -157,14 +181,6 @@ fi
 echo "    $COMMIT_COUNT commits" >&2
 
 # ── Split into per-day cache atoms ──
-
-days_in_range() {
-  local current="$1" end="$2"
-  while [[ "$current" < "$end" || "$current" == "$end" ]]; do
-    echo "$current"
-    current=$(date -d "$current + 1 day" +%Y-%m-%d 2>/dev/null || date -j -v+1d -f "%Y-%m-%d" "$current" +%Y-%m-%d)
-  done
-}
 
 for day in $(days_in_range "$SINCE_DAY" "$UNTIL_DAY"); do
   CACHE_DIR="$CACHE_BASE/$day"

@@ -5,7 +5,7 @@ set -euo pipefail
 # - Every entry in skills/ is a symlink pointing into a plugin's skills/ dir
 # - Every skill in a plugin's skills/ has a corresponding symlink in skills/
 # - Every skill referenced in plugin.json exists in that plugin's skills/ dir
-# - plugin.json skill paths use the expected ./skills/<name>/ format
+# - plugin.json skill paths normalize to exactly skills/<name>
 
 errors=0
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -87,13 +87,14 @@ for plugin_dir in "$root"/plugins/*/; do
   manifest="$plugin_dir/.claude-plugin/plugin.json"
   [ -f "$manifest" ] || continue
 
-  skill_names="$(python3 - "$manifest" <<'PYEOF'
+  if ! skill_names="$(python3 - "$manifest" <<'PYEOF'
 import json, os, sys
 
 manifest = sys.argv[1]
 with open(manifest) as f:
     data = json.load(f)
 
+invalid = False
 skills = data.get("skills", [])
 if isinstance(skills, list):
     for path in skills:
@@ -102,16 +103,17 @@ if isinstance(skills, list):
         if len(parts) == 2 and parts[0] == "skills":
             print(parts[1])
         else:
-            print(f"__INVALID_PATH__:{path}", file=sys.stderr)
+            print(f"invalid skill path: {path}", file=sys.stderr)
+            invalid = True
 elif isinstance(skills, dict):
     for name in skills:
         print(name)
-PYEOF
-)"
 
-  # Check for invalid paths reported by the parser
-  if [ $? -ne 0 ]; then
-    echo "ERROR: plugins/$plugin plugin.json has unparseable skill paths"
+if invalid:
+    sys.exit(1)
+PYEOF
+)"; then
+    echo "ERROR: plugins/$plugin plugin.json has invalid skill paths"
     errors=$((errors + 1))
   fi
 
@@ -127,7 +129,7 @@ PYEOF
   for skill_dir in "$plugin_dir"/skills/*/; do
     [ -d "$skill_dir" ] || continue
     name="$(basename "$skill_dir")"
-    if ! echo "$skill_names" | grep -Fqx "$name"; then
+    if ! echo "$skill_names" | grep -Fqx -- "$name"; then
       echo "ERROR: plugins/$plugin/skills/$name exists but is not in plugin.json"
       errors=$((errors + 1))
     fi

@@ -85,7 +85,11 @@ if [[ "$REUSE" == "true" ]]; then
   done
   if [[ "$ALL_COMPLETE" == "true" ]]; then
     echo "  All days cached and complete, skipping fetch" >&2
-    TOTAL=$(jq -s '[.[].metadata.count] | add' "$CACHE_BASE"/*/activity.json)
+    DAY_FILES=()
+    for day in $(days_in_range "$SINCE_DAY" "$UNTIL_DAY"); do
+      DAY_FILES+=("$CACHE_BASE/$day/activity.json")
+    done
+    TOTAL=$(jq -s '[.[].metadata.count] | add' "${DAY_FILES[@]}")
     echo '{"status":"complete","cache_base":"'"$CACHE_BASE"'","total_events":'"$TOTAL"'}'
     exit 0
   fi

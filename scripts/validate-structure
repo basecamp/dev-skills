@@ -99,7 +99,7 @@ if isinstance(skills, list):
     for path in skills:
         normalized = os.path.normpath(path)
         parts = normalized.split(os.sep)
-        if len(parts) >= 2 and parts[0] == "skills":
+        if len(parts) == 2 and parts[0] == "skills":
             print(parts[1])
         else:
             print(f"__INVALID_PATH__:{path}", file=sys.stderr)

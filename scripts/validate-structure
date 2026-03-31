@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Validate the symlink-inversion structure:
+# - Every entry in skills/ is a symlink with a valid target
+# - Every skill in a plugin's skills/ has a corresponding symlink in skills/
+# - Every skill referenced in plugin.json exists in that plugin's skills/ dir
+
+errors=0
+root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 1. Every entry in skills/ must be a symlink with a valid target
+for entry in "$root"/skills/*/; do
+  [ -e "$entry" ] || continue
+  name="$(basename "$entry")"
+  link="$root/skills/$name"
+
+  if [ ! -L "$link" ]; then
+    echo "ERROR: skills/$name is not a symlink"
+    errors=$((errors + 1))
+  elif [ ! -e "$link" ]; then
+    echo "ERROR: skills/$name is a broken symlink -> $(readlink "$link")"
+    errors=$((errors + 1))
+  fi
+done
+
+# 2. Every skill in a plugin's skills/ dir has a symlink in skills/
+for plugin_dir in "$root"/plugins/*/; do
+  [ -d "$plugin_dir" ] || continue
+  plugin="$(basename "$plugin_dir")"
+  skills_dir="$plugin_dir/skills"
+  [ -d "$skills_dir" ] || continue
+
+  for skill_dir in "$skills_dir"/*/; do
+    [ -d "$skill_dir" ] || continue
+    name="$(basename "$skill_dir")"
+    link="$root/skills/$name"
+
+    if [ ! -L "$link" ]; then
+      echo "ERROR: plugins/$plugin/skills/$name has no symlink in skills/"
+      errors=$((errors + 1))
+    else
+      target="$(readlink "$link")"
+      expected="../plugins/$plugin/skills/$name"
+      if [ "$target" != "$expected" ]; then
+        echo "ERROR: skills/$name -> $target (expected $expected)"
+        errors=$((errors + 1))
+      fi
+    fi
+  done
+done
+
+# 3. Every skill path in plugin.json exists in that plugin's skills/ dir
+for plugin_dir in "$root"/plugins/*/; do
+  [ -d "$plugin_dir" ] || continue
+  plugin="$(basename "$plugin_dir")"
+  manifest="$plugin_dir/.claude-plugin/plugin.json"
+  [ -f "$manifest" ] || continue
+
+  # Extract skill directory names from paths like "./skills/foo/"
+  skill_names="$(python3 -c "
+import json, sys
+with open('$manifest') as f:
+    data = json.load(f)
+skills = data.get('skills', [])
+if isinstance(skills, list):
+    for path in skills:
+        print(path.strip('./').split('/')[1] if '/' in path.strip('./') else path.strip('./'))
+elif isinstance(skills, dict):
+    for name in skills:
+        print(name)
+")"
+
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if [ ! -d "$plugin_dir/skills/$name" ]; then
+      echo "ERROR: plugins/$plugin plugin.json references '$name' but plugins/$plugin/skills/$name/ does not exist"
+      errors=$((errors + 1))
+    fi
+  done <<< "$skill_names"
+
+  # Reverse: every skill dir should be in plugin.json
+  for skill_dir in "$plugin_dir"/skills/*/; do
+    [ -d "$skill_dir" ] || continue
+    name="$(basename "$skill_dir")"
+    if ! echo "$skill_names" | grep -qx "$name"; then
+      echo "ERROR: plugins/$plugin/skills/$name exists but is not in plugin.json"
+      errors=$((errors + 1))
+    fi
+  done
+done
+
+if [ "$errors" -gt 0 ]; then
+  echo ""
+  echo "FAILED: $errors error(s) found"
+  exit 1
+fi
+
+echo "OK: structure is valid"

@@ -7,9 +7,9 @@
   "repository": "https://github.com/basecamp/house-skills",
   "license": "MIT",
   "skills": [
-    "./skills/recap/",
-    "./skills/basecamp-activity/",
-    "./skills/github-activity/",
-    "./skills/git-activity/"
+    "skills/recap",
+    "skills/basecamp-activity",
+    "skills/github-activity",
+    "skills/git-activity"
   ]
 }

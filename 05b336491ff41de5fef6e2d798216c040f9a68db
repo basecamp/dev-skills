@@ -1,0 +1,25 @@
+plugins/recap/.claude-plugin/plugin.json
+  944fa7adff47aad1 10-13
+plugins/recap/skills/basecamp-activity/scripts/basecamp-activity.sh
+  944fa7adff47aad1 88-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "05b336491ff41de5fef6e2d798216c040f9a68db",
+  "prompts": {
+    "944fa7adff47aad1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1589b5f-8bd0-40ac-bef4-0c7310793f8d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jeremy Daer <jeremy@37signals.com>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 5,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}

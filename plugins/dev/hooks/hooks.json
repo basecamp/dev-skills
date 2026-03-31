@@ -1,0 +1,15 @@
+{
+  "description": "Dev plugin hooks — ralph-lisa-loop stop hook prevents session exit during active loops",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/ralph-lisa-loop/scripts/stop-hook.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

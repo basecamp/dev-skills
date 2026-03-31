@@ -107,16 +107,23 @@ gh_search_all() {
     fi
 
     for state in $states; do
-      gh api "search/issues" --method GET \
+      if ! gh api "search/issues" --method GET \
         -f q="${query} is:${state}" -f per_page=100 \
-        --paginate --jq '.items' > "$tmpdir/state_${state}.raw" 2>/dev/null \
-        || true
+        --paginate --jq '.items' > "$tmpdir/state_${state}.raw" 2>"$tmpdir/state_${state}.err"; then
+        echo "    ERROR: state=$state search failed ($(head -1 "$tmpdir/state_${state}.err"))" >&2
+        rm -rf "$tmpdir"
+        return 1
+      fi
       jq -s 'add // []' "$tmpdir/state_${state}.raw" > "$tmpdir/state_${state}.json"
       rm -f "$tmpdir/state_${state}.raw"
       local sc
       sc=$(jq 'length' "$tmpdir/state_${state}.json")
       echo "    state=$state: $sc" >&2
-      [[ "$sc" -ge 1000 ]] && echo "    WARNING: state=$state hit 1000 cap — narrow date range" >&2
+      if [[ "$sc" -ge 1000 ]]; then
+        echo "    ERROR: state=$state still at 1000 cap — narrow date range" >&2
+        rm -rf "$tmpdir"
+        return 1
+      fi
     done
 
     jq -s 'add | unique_by(.html_url)' "$tmpdir"/state_*.json > "$tmpdir/all.json"

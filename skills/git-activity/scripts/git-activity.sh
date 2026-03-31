@@ -87,13 +87,22 @@ for pair in "${REPO_PAIRS[@]}"; do
 
     # Fetch git log for this day — write to file to avoid null byte issues
     COMMITS_FILE=$(mktemp)
+    GIT_STDERR=$(mktemp)
+    GIT_EXIT=0
     git -C "$REPO_PATH" log \
       --format='%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1f%b%x1e' \
       --since="${day}T00:00:00" --until="${NEXT_DAY}T00:00:00" \
-      --no-merges > "$COMMITS_FILE" 2>/dev/null || true
+      --no-merges > "$COMMITS_FILE" 2>"$GIT_STDERR" || GIT_EXIT=$?
+
+    if [[ "$GIT_EXIT" -ne 0 ]]; then
+      echo "  ERROR: git log failed for $REPO_NAME/$day (exit $GIT_EXIT): $(cat "$GIT_STDERR")" >&2
+      rm -f "$COMMITS_FILE" "$GIT_STDERR"
+      exit 1
+    fi
+    rm -f "$GIT_STDERR"
 
     if [[ ! -s "$COMMITS_FILE" ]]; then
-      # No commits — write empty but complete
+      # No commits (exit 0, empty output) — write empty but complete
       rm -f "$COMMITS_FILE"
       jq -n --arg repo "$REPO_NAME" --arg day "$day" '{
         repo: $repo,

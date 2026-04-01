@@ -1,0 +1,23 @@
+AGENTS.md
+  3e7a697e4bdfdd92 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.3",
+  "base_commit_sha": "1d28015fc97a2a310e5c99d9cde74b9f41c30c44",
+  "prompts": {
+    "3e7a697e4bdfdd92": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a6985547-df22-4e01-bcf1-e5224452fc1e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Jeremy Daer",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}

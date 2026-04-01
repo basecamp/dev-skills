@@ -7,7 +7,7 @@ Skills for AI coding assistants following the [Agent Skills](https://agentskills
 ### Repository structure
 
 This repo serves two distribution channels:
-- **Plugins** (Claude Code marketplace): `plugins/{dev,ai,security}/` — each is a self-contained plugin extracted by `git-subdir`
+- **Plugins** (Claude Code marketplace): `plugins/{dev,ai,security,recap}/` — each is a self-contained plugin extracted by `git-subdir`
 - **Standalone skills** (`npx skills add`): `skills/` — a unified view via symlinks
 
 **Real skill files live inside their owning plugin** at `plugins/{plugin}/skills/{name}/`.

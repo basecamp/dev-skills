@@ -1,3 +1,14 @@
+## Install
+
+**Claude Code** — install as plugins via the [37signals marketplace](https://github.com/basecamp/claude-plugins):
+
+```bash
+claude plugin marketplace add basecamp/claude-plugins
+claude plugin install dev        # or: security, ai, recap
+```
+
+**Other agents** — install as standalone skills:
+
 ```bash
 npx skills add basecamp/house-skills
 ```
